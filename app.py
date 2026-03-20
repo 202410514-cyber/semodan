@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, url_for, render_template_string, session
+from flask import Flask, request, redirect, url_for, render_template_string, session, send_from_directory
 from datetime import date
 import random
 
@@ -17,75 +17,8 @@ HTML = """
 <head>
 <meta charset="utf-8">
 <title>세상의 모든 단어</title>
-<style>
-* {
-  box-sizing: border-box;
-}
-body {
-  margin: 0;
-  font-family: Arial;
-  background: #f4f6fb;
-}
-header {
-  background: #3f51b5;
-  color: white;
-  padding: 18px;
-  text-align: center;
-  font-size: 24px;
-}
-.container {
-  max-width: 1200px;
-  margin: 20px auto;
-  padding: 10px;
-}
-.row {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-.col {
-  flex: 1;
-  min-width: 320px;
-}
-.card {
-  background: white;
-  border-radius: 14px;
-  padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-}
-.word {
-  font-size: 48px;
-  text-align: center;
-  font-weight: bold;
-  margin: 20px 0;
-}
-input, button {
-  width: 100%;
-  padding: 12px;
-  margin-top: 10px;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-}
-button {
-  background: #3f51b5;
-  color: white;
-  font-weight: bold;
-  border: none;
-  cursor: pointer;
-}
-.right { color: green; font-weight: bold; }
-.wrong { color: red; font-weight: bold; }
-.small { color: #666; font-size: 14px; }
-.word-list {
-  line-height: 1.8;
-}
-.top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-</style>
+<link rel="stylesheet" href="styles.css">
+
 </head>
 
 <body>
@@ -106,6 +39,7 @@ button {
   <div class="card top">
     <b>👤 {{ user }}</b>
     <a href="/logout">로그아웃</a>
+
   </div>
 
   <div class="row">
@@ -115,8 +49,16 @@ button {
       <div class="card">
         <h2>📚 단어장</h2>
         <div class="word-list">
-          {% for w in words %}
-            {{ w.en }} - {{ w.ko }}<br>
+          {% for group in words|groupby('cat') %}
+            <details style="margin-bottom: 15px; padding: 10px; background: #fafafa; border-radius: 8px;">
+              <summary style="color: #3f51b5; font-weight: bold; cursor: pointer; outline: none;">📁 {{ group.grouper }} ({{ group.list|length }}개)</summary>
+              <div style="margin-top: 10px; padding-left: 10px;">
+              {% for w in group.list %}
+                <span style="display: inline-block; min-width: 80px; font-weight: bold;">{{ w.en }}</span> 
+                <span style="color: #666;">{{ w.ko }}</span><br>
+              {% endfor %}
+              </div>
+            </details>
           {% else %}
             단어 없음
           {% endfor %}
@@ -126,6 +68,7 @@ button {
       <div class="card">
         <h2>➕ 단어 추가</h2>
         <form method="post" action="/add">
+          <input name="category" placeholder="카테고리 (예: 토익, 일상)" required>
           <input name="en" placeholder="영어 단어" required>
           <input name="ko" placeholder="뜻 (한글)" required>
           <button>추가</button>
@@ -173,6 +116,10 @@ button {
 """
 
 # ---------------- 기능 ----------------
+@app.route("/styles.css")
+def styles():
+    return send_from_directory(".", "styles.css")
+
 def next_quiz(user):
     words = user_words.get(user, [])
     if words:
@@ -183,6 +130,9 @@ def home():
     user = session.get("user")
     if user:
         user_words.setdefault(user, [])
+        for w in user_words[user]:
+            if "cat" not in w:
+                w["cat"] = "기본"
         records.setdefault(user, {})
         if user not in current_quiz:
             next_quiz(user)
@@ -213,6 +163,7 @@ def logout():
 def add():
     user = session["user"]
     user_words[user].append({
+        "cat": request.form.get("category", "기본"),
         "en": request.form["en"],
         "ko": request.form["ko"]
     })
